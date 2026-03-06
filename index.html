@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Dois Dados - Positivo e Negativo</title>
+    <title>Dois Dados - Arraste Funcionando</title>
     <style>
         body {
             margin: 0;
@@ -82,11 +82,6 @@
             margin: 0 auto;
         }
         
-        #info span {
-            color: #00aaff;
-            font-weight: bold;
-        }
-        
         /* Indicadores de segurar */
         .grabIndicator {
             position: absolute;
@@ -163,7 +158,6 @@
             transform: translateX(-50%) scale(1.1);
         }
         
-        /* Versão mobile */
         @media (max-width: 768px) {
             .roll-btn {
                 bottom: 80px;
@@ -191,11 +185,6 @@
                 height: 40px;
                 font-size: 20px;
             }
-            
-            #info {
-                font-size: 14px;
-                padding: 12px;
-            }
         }
     </style>
 </head>
@@ -205,14 +194,12 @@
     <button id="rollBtn2" class="roll-btn">🎲 DADO -</button>
     
     <div id="info">
-        <span>🎮 CONTROLES:</span> Arraste os dados com o mouse/dedo • Botões para jogar • Scroll para zoom • ⟲ Reset câmera
+        🖱️ Clique e arraste os dados • Botões para jogar • Scroll para zoom • ⟲ Reset
     </div>
     
-    <!-- Indicadores de segurar -->
     <div id="grabIndicator1" class="grabIndicator">✋ SEGURANDO +</div>
     <div id="grabIndicator2" class="grabIndicator">✋ SEGURANDO -</div>
     
-    <!-- Botão reset câmera -->
     <div id="resetCamera">⟲</div>
 
     <script type="importmap">
@@ -240,19 +227,14 @@
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setSize(window.innerWidth, window.innerHeight);
         renderer.shadowMap.enabled = true;
-        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         document.body.appendChild(renderer.domElement);
 
-        // --- Controles (Orbit) ---
+        // --- Controles ---
         const controls = new OrbitControls(camera, renderer.domElement);
         controls.enableDamping = true;
         controls.dampingFactor = 0.05;
         controls.maxPolarAngle = Math.PI / 2.2;
-        controls.minDistance = 5;
-        controls.maxDistance = 20;
         controls.target.set(0, 1, 0);
-        controls.enablePan = true;
-        controls.panSpeed = 1;
 
         // --- Iluminação ---
         const ambientLight = new THREE.AmbientLight(0x404060);
@@ -261,29 +243,7 @@
         const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
         mainLight.position.set(5, 12, 8);
         mainLight.castShadow = true;
-        mainLight.shadow.mapSize.width = 2048;
-        mainLight.shadow.mapSize.height = 2048;
-        mainLight.shadow.camera.near = 0.5;
-        mainLight.shadow.camera.far = 25;
-        mainLight.shadow.camera.left = -10;
-        mainLight.shadow.camera.right = 10;
-        mainLight.shadow.camera.top = 10;
-        mainLight.shadow.camera.bottom = -10;
         scene.add(mainLight);
-
-        // Luzes coloridas para cada lado
-        const blueLight = new THREE.PointLight(0x00aaff, 0.8);
-        blueLight.position.set(3, 3, 3);
-        scene.add(blueLight);
-
-        const purpleLight = new THREE.PointLight(0xaa00ff, 0.8);
-        purpleLight.position.set(-3, 3, -3);
-        scene.add(purpleLight);
-
-        // Luz de preenchimento
-        const fillLight = new THREE.PointLight(0x446688, 0.4);
-        fillLight.position.set(0, 5, 0);
-        scene.add(fillLight);
 
         // --- Mundo Físico ---
         const world = new CANNON.World({
@@ -293,36 +253,31 @@
         const defaultMaterial = new CANNON.Material('default');
         const contactMaterial = new CANNON.ContactMaterial(defaultMaterial, defaultMaterial, {
             friction: 0.5,
-            restitution: 0.2,
-            contactEquationStiffness: 1e7,
-            contactEquationRelaxation: 3
+            restitution: 0.2
         });
         world.addContactMaterial(contactMaterial);
         world.defaultContactMaterial = contactMaterial;
 
         // --- Chão ---
         const groundGeo = new THREE.PlaneGeometry(20, 20);
-        const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.7 });
+        const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a });
         const groundMesh = new THREE.Mesh(groundGeo, groundMat);
         groundMesh.rotation.x = -Math.PI / 2;
         groundMesh.receiveShadow = true;
         scene.add(groundMesh);
 
-        // Grade decorativa
         const gridHelper = new THREE.GridHelper(20, 20, 0x00aaff, 0x444444);
         gridHelper.position.y = 0.01;
         scene.add(gridHelper);
 
-        // Chão físico
         const groundBody = new CANNON.Body({
             type: CANNON.Body.STATIC,
-            shape: new CANNON.Plane(),
-            material: defaultMaterial
+            shape: new CANNON.Plane()
         });
         groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
         world.addBody(groundBody);
 
-        // --- Função para criar textura dos dados ---
+        // --- Função para criar textura ---
         function createNumberTexture(number, isNegative = false) {
             const canvas = document.createElement('canvas');
             canvas.width = 512;
@@ -330,53 +285,24 @@
             const ctx = canvas.getContext('2d');
 
             if (isNegative) {
-                // Dado negativo (preto com números vermelhos)
-                const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-                gradient.addColorStop(0, '#1a1a1a');
-                gradient.addColorStop(1, '#2a2a2a');
-                ctx.fillStyle = gradient;
+                // Dado negativo
+                ctx.fillStyle = '#1a1a1a';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                // Borda roxa
                 ctx.strokeStyle = '#aa00ff';
                 ctx.lineWidth = 16;
                 ctx.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
-
-                // Sombra para o texto
-                ctx.shadowColor = '#aa00ff';
-                ctx.shadowBlur = 30;
-                ctx.shadowOffsetX = 0;
-                ctx.shadowOffsetY = 0;
-                
-                // Número vermelho com símbolo negativo
                 ctx.fillStyle = '#ff4444';
                 ctx.font = 'Bold 240px "Segoe UI", Arial';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
-                
-                // Adiciona o sinal de menos antes do número
-                const text = `-${Math.abs(number)}`;
-                ctx.fillText(text, canvas.width / 2, canvas.height / 2);
+                ctx.fillText(`-${number}`, canvas.width / 2, canvas.height / 2);
             } else {
-                // Dado positivo (branco com números azuis)
-                const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-                gradient.addColorStop(0, '#f0f0f0');
-                gradient.addColorStop(1, '#ffffff');
-                ctx.fillStyle = gradient;
+                // Dado positivo
+                ctx.fillStyle = '#f0f0f0';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                // Borda azul
                 ctx.strokeStyle = '#00aaff';
                 ctx.lineWidth = 16;
                 ctx.strokeRect(8, 8, canvas.width - 16, canvas.height - 16);
-
-                // Sombra para o texto
-                ctx.shadowColor = '#00aaff';
-                ctx.shadowBlur = 30;
-                ctx.shadowOffsetX = 0;
-                ctx.shadowOffsetY = 0;
-                
-                // Número azul
                 ctx.fillStyle = '#0066cc';
                 ctx.font = 'Bold 240px "Segoe UI", Arial';
                 ctx.textAlign = 'center';
@@ -388,17 +314,15 @@
         }
 
         // --- Materiais dos dados ---
-        // Dado 1 - Positivo (azul)
         const materials1 = [
+            new THREE.MeshStandardMaterial({ map: createNumberTexture(1, false) }),
             new THREE.MeshStandardMaterial({ map: createNumberTexture(2, false) }),
-            new THREE.MeshStandardMaterial({ map: createNumberTexture(5, false) }),
             new THREE.MeshStandardMaterial({ map: createNumberTexture(3, false) }),
             new THREE.MeshStandardMaterial({ map: createNumberTexture(4, false) }),
-            new THREE.MeshStandardMaterial({ map: createNumberTexture(1, false) }),
+            new THREE.MeshStandardMaterial({ map: createNumberTexture(5, false) }),
             new THREE.MeshStandardMaterial({ map: createNumberTexture(6, false) })
         ];
 
-        // Dado 2 - Negativo (roxo com números negativos)
         const materials2 = [
             new THREE.MeshStandardMaterial({ map: createNumberTexture(1, true) }),
             new THREE.MeshStandardMaterial({ map: createNumberTexture(2, true) }),
@@ -408,16 +332,14 @@
             new THREE.MeshStandardMaterial({ map: createNumberTexture(6, true) })
         ];
 
-        // --- Criar os dois dados ---
+        // --- Criar os dados ---
         const diceGeo = new THREE.BoxGeometry(1, 1, 1);
         
-        // Dado 1
         const diceMesh1 = new THREE.Mesh(diceGeo, materials1);
         diceMesh1.castShadow = true;
         diceMesh1.receiveShadow = true;
         scene.add(diceMesh1);
 
-        // Dado 2
         const diceMesh2 = new THREE.Mesh(diceGeo, materials2);
         diceMesh2.castShadow = true;
         diceMesh2.receiveShadow = true;
@@ -430,9 +352,7 @@
             mass: 1,
             shape: diceShape,
             position: new CANNON.Vec3(-2, 3, 0),
-            material: defaultMaterial,
-            linearDamping: 0.2,
-            angularDamping: 0.2
+            material: defaultMaterial
         });
         world.addBody(diceBody1);
 
@@ -440,13 +360,11 @@
             mass: 1,
             shape: diceShape,
             position: new CANNON.Vec3(2, 3, 0),
-            material: defaultMaterial,
-            linearDamping: 0.2,
-            angularDamping: 0.2
+            material: defaultMaterial
         });
         world.addBody(diceBody2);
 
-        // Bordas decorativas
+        // Bordas
         const edges1 = new THREE.EdgesGeometry(diceGeo);
         const edges2 = new THREE.EdgesGeometry(diceGeo);
         const line1 = new THREE.LineSegments(edges1, new THREE.LineBasicMaterial({ color: 0x00aaff }));
@@ -454,31 +372,34 @@
         diceMesh1.add(line1);
         diceMesh2.add(line2);
 
-        // --- Sistema de arrastar para dois dados ---
+        // --- SISTEMA DE ARRASTAR CORRIGIDO ---
         const grabIndicator1 = document.getElementById('grabIndicator1');
         const grabIndicator2 = document.getElementById('grabIndicator2');
         const rollBtn1 = document.getElementById('rollBtn1');
         const rollBtn2 = document.getElementById('rollBtn2');
         
-        let isDragging1 = false;
-        let isDragging2 = false;
-        let activeDragBody = null;
-        let activeDragMesh = null;
-        let activeIndicator = null;
-        let activeButton = null;
+        let isDragging = false;
+        let draggedBody = null;
+        let draggedMesh = null;
+        let dragIndicator = null;
+        let dragButton = null;
         let dragPlane = new THREE.Plane();
         let dragOffset = new THREE.Vector3();
-        let raycaster = new THREE.Raycaster();
-        let mouse = new THREE.Vector2();
+        let dragStartPoint = new THREE.Vector3();
+        
+        const raycaster = new THREE.Raycaster();
+        const mouse = new THREE.Vector2();
 
-        // Event listeners
+        // Eventos de mouse
         renderer.domElement.addEventListener('mousedown', onDragStart);
         window.addEventListener('mousemove', onDragMove);
         window.addEventListener('mouseup', onDragEnd);
-        
+
+        // Eventos de touch
         renderer.domElement.addEventListener('touchstart', onTouchStart);
         window.addEventListener('touchmove', onTouchMove);
         window.addEventListener('touchend', onDragEnd);
+        window.addEventListener('touchcancel', onDragEnd);
 
         function onDragStart(event) {
             event.preventDefault();
@@ -486,7 +407,7 @@
             mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
             mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
             
-            checkIntersection();
+            checkDragStart();
         }
 
         function onTouchStart(event) {
@@ -496,10 +417,10 @@
             mouse.x = (touch.clientX / renderer.domElement.clientWidth) * 2 - 1;
             mouse.y = -(touch.clientY / renderer.domElement.clientHeight) * 2 + 1;
             
-            checkIntersection();
+            checkDragStart();
         }
 
-        function checkIntersection() {
+        function checkDragStart() {
             raycaster.setFromCamera(mouse, camera);
             const intersects = raycaster.intersectObjects([diceMesh1, diceMesh2]);
             
@@ -515,20 +436,16 @@
         }
 
         function startDragging(body, mesh, indicator, button) {
-            activeDragBody = body;
-            activeDragMesh = mesh;
-            activeIndicator = indicator;
-            activeButton = button;
+            isDragging = true;
+            draggedBody = body;
+            draggedMesh = mesh;
+            dragIndicator = indicator;
+            dragButton = button;
             
-            if (body === diceBody1) {
-                isDragging1 = true;
-            } else {
-                isDragging2 = true;
-            }
-            
+            // Desabilita controles e botões
+            controls.enabled = false;
             button.disabled = true;
             indicator.classList.add('active');
-            controls.enabled = false;
             
             // Congela física
             body.mass = 0;
@@ -536,27 +453,35 @@
             body.velocity.set(0, 0, 0);
             body.angularVelocity.set(0, 0, 0);
             
-            // Calcula offset do ponto de clique
-            const point = new THREE.Vector3().copy(mesh.position);
-            dragOffset.copy(body.position).sub(new CANNON.Vec3(point.x, point.y, point.z));
+            // Pega a posição do clique
+            dragStartPoint.copy(mesh.position);
             
-            // Cria plano de arrasto
-            const normal = camera.getWorldDirection(new THREE.Vector3());
-            dragPlane.setFromNormalAndCoplanarPoint(normal, point);
-        }
-
-        function onDragMove(event) {
-            if (!activeDragBody) return;
-            event.preventDefault();
+            // Cria um plano de arrasto na altura do dado
+            dragPlane.setFromNormalAndCoplanarPoint(
+                new THREE.Vector3(0, 1, 0), // Plano horizontal
+                dragStartPoint
+            );
             
-            if (event.type === 'mousemove') {
-                mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
-                mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
+            // Calcula offset
+            raycaster.setFromCamera(mouse, camera);
+            const intersectionPoint = new THREE.Vector3();
+            if (raycaster.ray.intersectPlane(dragPlane, intersectionPoint)) {
+                dragOffset.copy(dragStartPoint).sub(intersectionPoint);
             }
         }
 
+        function onDragMove(event) {
+            if (!isDragging) return;
+            event.preventDefault();
+            
+            mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
+            mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
+            
+            updateDragPosition();
+        }
+
         function onTouchMove(event) {
-            if (!activeDragBody) return;
+            if (!isDragging) return;
             event.preventDefault();
             
             const touch = event.touches[0];
@@ -568,97 +493,75 @@
 
         function updateDragPosition() {
             raycaster.setFromCamera(mouse, camera);
-            const targetPoint = new THREE.Vector3();
+            const intersectionPoint = new THREE.Vector3();
             
-            if (raycaster.ray.intersectPlane(dragPlane, targetPoint)) {
-                targetPoint.add(dragOffset);
+            if (raycaster.ray.intersectPlane(dragPlane, intersectionPoint)) {
+                // Aplica o offset
+                const newPos = intersectionPoint.clone().add(dragOffset);
                 
-                // Limites do cenário
-                targetPoint.x = Math.max(-8, Math.min(8, targetPoint.x));
-                targetPoint.y = Math.max(0.5, Math.min(5, targetPoint.y));
-                targetPoint.z = Math.max(-8, Math.min(8, targetPoint.z));
+                // Limites
+                newPos.x = Math.max(-8, Math.min(8, newPos.x));
+                newPos.y = Math.max(0.5, Math.min(5, newPos.y));
+                newPos.z = Math.max(-8, Math.min(8, newPos.z));
                 
-                activeDragBody.position.copy(targetPoint);
+                draggedBody.position.copy(newPos);
             }
         }
 
         function onDragEnd(event) {
-            if (activeDragBody) {
-                // Reativa física
-                activeDragBody.mass = 1;
-                activeDragBody.updateMassProperties();
-                
-                // Pequeno impulso ao soltar
-                activeDragBody.velocity.set(
-                    (Math.random() - 0.5) * 2,
-                    (Math.random() - 0.5) * 1,
-                    (Math.random() - 0.5) * 2
-                );
-                activeDragBody.angularVelocity.set(
-                    (Math.random() - 0.5) * 5,
-                    (Math.random() - 0.5) * 5,
-                    (Math.random() - 0.5) * 5
-                );
-                
-                // Limpa estados
-                activeButton.disabled = false;
-                activeIndicator.classList.remove('active');
-                
-                if (activeDragBody === diceBody1) {
-                    isDragging1 = false;
-                } else {
-                    isDragging2 = false;
-                }
-                
-                activeDragBody = null;
-                activeDragMesh = null;
-                activeIndicator = null;
-                activeButton = null;
-                
-                controls.enabled = true;
-            }
+            if (!isDragging) return;
+            
+            // Reativa física
+            draggedBody.mass = 1;
+            draggedBody.updateMassProperties();
+            
+            // Pequeno impulso aleatório
+            draggedBody.velocity.set(
+                (Math.random() - 0.5) * 2,
+                0,
+                (Math.random() - 0.5) * 2
+            );
+            
+            // Limpa estados
+            controls.enabled = true;
+            dragButton.disabled = false;
+            dragIndicator.classList.remove('active');
+            
+            isDragging = false;
+            draggedBody = null;
+            draggedMesh = null;
+            dragIndicator = null;
+            dragButton = null;
         }
 
         // --- Botões de jogar ---
         document.getElementById('rollBtn1').addEventListener('click', () => {
-            if (isDragging1) return;
+            if (isDragging) return;
             diceBody1.position.set(-2, 6, 0);
             diceBody1.velocity.set(
-                (Math.random() - 0.5) * 6,
-                4 + Math.random() * 3,
-                (Math.random() - 0.5) * 6
+                (Math.random() - 0.5) * 8,
+                5 + Math.random() * 4,
+                (Math.random() - 0.5) * 8
             );
             diceBody1.angularVelocity.set(
                 (Math.random() - 0.5) * 20,
                 (Math.random() - 0.5) * 20,
                 (Math.random() - 0.5) * 20
             );
-            diceBody1.quaternion.set(
-                Math.random() * Math.PI,
-                Math.random() * Math.PI,
-                Math.random() * Math.PI,
-                1
-            );
         });
 
         document.getElementById('rollBtn2').addEventListener('click', () => {
-            if (isDragging2) return;
+            if (isDragging) return;
             diceBody2.position.set(2, 6, 0);
             diceBody2.velocity.set(
-                (Math.random() - 0.5) * 6,
-                4 + Math.random() * 3,
-                (Math.random() - 0.5) * 6
+                (Math.random() - 0.5) * 8,
+                5 + Math.random() * 4,
+                (Math.random() - 0.5) * 8
             );
             diceBody2.angularVelocity.set(
                 (Math.random() - 0.5) * 20,
                 (Math.random() - 0.5) * 20,
                 (Math.random() - 0.5) * 20
-            );
-            diceBody2.quaternion.set(
-                Math.random() * Math.PI,
-                Math.random() * Math.PI,
-                Math.random() * Math.PI,
-                1
             );
         });
 
@@ -666,29 +569,21 @@
         document.getElementById('resetCamera').addEventListener('click', () => {
             camera.position.set(8, 5, 10);
             controls.target.set(0, 1, 0);
-            controls.update();
         });
 
         // --- Animação ---
         function animate() {
             requestAnimationFrame(animate);
 
-            // Física apenas se não estiver arrastando
-            if (!isDragging1 && !isDragging2) {
+            if (!isDragging) {
                 world.step(1 / 60);
             }
 
-            // Sincroniza malhas visuais
+            // Sincroniza posições
             diceMesh1.position.copy(diceBody1.position);
             diceMesh1.quaternion.copy(diceBody1.quaternion);
-            
             diceMesh2.position.copy(diceBody2.position);
             diceMesh2.quaternion.copy(diceBody2.quaternion);
-
-            // Atualiza posição durante arrasto
-            if (activeDragBody) {
-                updateDragPosition();
-            }
 
             controls.update();
             renderer.render(scene, camera);
@@ -703,13 +598,9 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // --- Posição inicial estável ---
+        // Posição inicial
         diceBody1.position.set(-2, 3, 0);
         diceBody2.position.set(2, 3, 0);
-        diceBody1.velocity.set(0, 0, 0);
-        diceBody2.velocity.set(0, 0, 0);
-        diceBody1.angularVelocity.set(0, 0, 0);
-        diceBody2.angularVelocity.set(0, 0, 0);
     </script>
 </body>
 </html>
