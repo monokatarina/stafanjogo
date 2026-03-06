@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Dado Interativo - Arraste e Jogue</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            touch-action: none;
+        }
+        
+        /* Botão de jogar */
+        #rollBtn {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 16px 40px;
+            font-size: 24px;
+            border: none;
+            border-radius: 60px;
+            background: #00aaff;
+            color: white;
+            font-weight: bold;
+            letter-spacing: 2px;
+            box-shadow: 0 4px 20px rgba(0,170,255,0.6);
+            border: 3px solid rgba(255,255,255,0.3);
+            z-index: 30;
+            cursor: pointer;
+            transition: all 0.2s;
+            min-width: 200px;
+            text-shadow: 0 2px 5px rgba(0,0,0,0.3);
+        }
+        
+        #rollBtn:active {
+            transform: translateX(-50%) scale(0.95);
+            background: #0088cc;
+        }
+        
+        #rollBtn:disabled {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        
+        /* Painel de instruções */
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 30px;
+            backdrop-filter: blur(5px);
+            font-size: 16px;
+            border: 2px solid #00aaff;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            z-index: 20;
+            text-align: center;
+            pointer-events: none;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        
+        #info span {
+            color: #00aaff;
+            font-weight: bold;
+        }
+        
+        /* Indicador de segurar */
+        #grabIndicator {
+            position: absolute;
+            top: 100px;
+            right: 30px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 12px 25px;
+            border-radius: 50px;
+            border: 2px solid #00aaff;
+            font-size: 18px;
+            font-weight: bold;
+            z-index: 40;
+            backdrop-filter: blur(5px);
+            text-align: center;
+            pointer-events: none;
+            transition: all 0.3s;
+            opacity: 0;
+            transform: scale(0.8);
+        }
+        
+        #grabIndicator.active {
+            opacity: 1;
+            transform: scale(1);
+            background: #00aaff;
+            color: black;
+            box-shadow: 0 0 30px #00aaff;
+        }
+        
+        /* Botão de resetar câmera */
+        #resetCamera {
+            position: absolute;
+            top: 100px;
+            left: 30px;
+            width: 50px;
+            height: 50px;
+            border-radius: 25px;
+            background: rgba(0, 0, 0, 0.7);
+            border: 2px solid #00aaff;
+            color: white;
+            font-size: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 30;
+            backdrop-filter: blur(5px);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        #resetCamera:hover {
+            background: #00aaff;
+            transform: scale(1.1);
+        }
+        
+        /* Instruções específicas */
+        .desktop-only {
+            display: inline;
+        }
+        
+        .mobile-only {
+            display: none;
+        }
+        
+        @media (max-width: 768px) {
+            #rollBtn {
+                bottom: 80px;
+                padding: 14px 30px;
+                font-size: 20px;
+                min-width: 160px;
+            }
+            
+            #grabIndicator {
+                top: auto;
+                bottom: 150px;
+                right: 20px;
+                font-size: 16px;
+                padding: 10px 20px;
+            }
+            
+            #resetCamera {
+                top: 80px;
+                left: 20px;
+                width: 45px;
+                height: 45px;
+                font-size: 22px;
+            }
+            
+            #info {
+                font-size: 14px;
+                padding: 12px 15px;
+            }
+            
+            .desktop-only {
+                display: none;
+            }
+            
+            .mobile-only {
+                display: inline;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <button id="rollBtn">🎲 JOGAR DADO</button>
+    
+    <div id="info">
+        <span class="desktop-only">🖱️ DESKTOP:</span>
+        <span class="mobile-only">📱 MOBILE:</span>
+        Arraste o dado com o mouse/dedo • Botão para jogar • Scroll para zoom
+    </div>
+    
+    <!-- Indicador de "segurando dado" -->
+    <div id="grabIndicator">✋ SEGURANDO O DADO</div>
+    
+    <!-- Botão reset câmera -->
+    <div id="resetCamera">⟲</div>
+
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://cdn.jsdelivr.net/npm/three@0.158/build/three.module.js",
+                "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.158/examples/jsm/",
+                "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import * as CANNON from 'cannon-es';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { DragControls } from 'three/addons/controls/DragControls.js';
+
+        // --- Configurações iniciais ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a1a);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(6, 4, 8);
+        
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document.body.appendChild(renderer.domElement);
+
+        // --- Controles (Orbit) ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.05;
+        controls.maxPolarAngle = Math.PI / 2.2;
+        controls.minDistance = 3;
+        controls.maxDistance = 15;
+        controls.target.set(0, 1, 0);
+        controls.enablePan = true;
+        controls.panSpeed = 1;
+
+        // --- Iluminação ---
+        const ambientLight = new THREE.AmbientLight(0x404060);
+        scene.add(ambientLight);
+
+        const mainLight = new THREE.DirectionalLight(0xffffff, 1.2);
+        mainLight.position.set(5, 12, 8);
+        mainLight.castShadow = true;
+        mainLight.shadow.mapSize.width = 2048;
+        mainLight.shadow.mapSize.height = 2048;
+        mainLight.shadow.camera.near = 0.5;
+        mainLight.shadow.camera.far = 25;
+        mainLight.shadow.camera.left = -10;
+        mainLight.shadow.camera.right = 10;
+        mainLight.shadow.camera.top = 10;
+        mainLight.shadow.camera.bottom = -10;
+        scene.add(mainLight);
+
+        const fillLight = new THREE.PointLight(0x446688, 0.6);
+        fillLight.position.set(-3, 4, 5);
+        scene.add(fillLight);
+
+        // --- Mundo Físico ---
+        const world = new CANNON.World({
+            gravity: new CANNON.Vec3(0, -15, 0)
+        });
+        
+        const defaultMaterial = new CANNON.Material('default');
+        const contactMaterial = new CANNON.ContactMaterial(defaultMaterial, defaultMaterial, {
+            friction: 0.5,
+            restitution: 0.2
+        });
+        world.addContactMaterial(contactMaterial);
+        world.defaultContactMaterial = contactMaterial;
+
+        // --- Chão ---
+        const groundGeo = new THREE.PlaneGeometry(20, 20);
+        const groundMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.7 });
+        const groundMesh = new THREE.Mesh(groundGeo, groundMat);
+        groundMesh.rotation.x = -Math.PI / 2;
+        groundMesh.receiveShadow = true;
+        scene.add(groundMesh);
+
+        const gridHelper = new THREE.GridHelper(20, 20, 0x00aaff, 0x444444);
+        gridHelper.position.y = 0.01;
+        scene.add(gridHelper);
+
+        const groundBody = new CANNON.Body({
+            type: CANNON.Body.STATIC,
+            shape: new CANNON.Plane(),
+            material: defaultMaterial
+        });
+        groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
+        world.addBody(groundBody);
+
+        // --- Criar números do dado ---
+        function createNumberTexture(number) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256;
+            canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+
+            // Fundo
+            ctx.fillStyle = '#f8f8f8';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Borda
+            ctx.strokeStyle = '#333';
+            ctx.lineWidth = 8;
+            ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
+
+            // Número grande
+            ctx.fillStyle = '#222';
+            ctx.font = 'Bold 160px "Segoe UI", Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(number, canvas.width / 2, canvas.height / 2);
+
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        const materials = [
+            new THREE.MeshStandardMaterial({ map: createNumberTexture(2) }), // direita
+            new THREE.MeshStandardMaterial({ map: createNumberTexture(5) }), // esquerda
+            new THREE.MeshStandardMaterial({ map: createNumberTexture(3) }), // cima
+            new THREE.MeshStandardMaterial({ map: createNumberTexture(4) }), // baixo
+            new THREE.MeshStandardMaterial({ map: createNumberTexture(1) }), // frente
+            new THREE.MeshStandardMaterial({ map: createNumberTexture(6) })  // trás
+        ];
+
+        // --- Dado ---
+        const diceGeo = new THREE.BoxGeometry(1, 1, 1);
+        const diceMesh = new THREE.Mesh(diceGeo, materials);
+        diceMesh.castShadow = true;
+        diceMesh.receiveShadow = true;
+        scene.add(diceMesh);
+
+        const diceShape = new CANNON.Box(new CANNON.Vec3(0.5, 0.5, 0.5));
+        const diceBody = new CANNON.Body({
+            mass: 1,
+            shape: diceShape,
+            position: new CANNON.Vec3(0, 3, 0),
+            material: defaultMaterial,
+            linearDamping: 0.2,
+            angularDamping: 0.2
+        });
+        world.addBody(diceBody);
+
+        // Bordas decorativas
+        const edges = new THREE.EdgesGeometry(diceGeo);
+        const line = new THREE.LineSegments(edges, new THREE.LineBasicMaterial({ color: 0x00aaff }));
+        diceMesh.add(line);
+
+        // --- Sistema de arrastar ---
+        const grabIndicator = document.getElementById('grabIndicator');
+        const rollBtn = document.getElementById('rollBtn');
+        let isDragging = false;
+        let dragPlane = new THREE.Plane();
+        let dragOffset = new THREE.Vector3();
+        let dragStartPosition = new THREE.Vector3();
+        let mouse = new THREE.Vector2();
+        let raycaster = new THREE.Raycaster();
+
+        // Eventos para PC
+        renderer.domElement.addEventListener('mousedown', onDragStart);
+        window.addEventListener('mousemove', onDragMove);
+        window.addEventListener('mouseup', onDragEnd);
+
+        // Eventos para Mobile
+        renderer.domElement.addEventListener('touchstart', onTouchStart);
+        window.addEventListener('touchmove', onTouchMove);
+        window.addEventListener('touchend', onTouchEnd);
+
+        function onDragStart(event) {
+            event.preventDefault();
+            
+            mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
+            mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(diceMesh);
+            
+            if (intersects.length > 0) {
+                startDragging(intersects[0].point);
+            }
+        }
+
+        function onTouchStart(event) {
+            event.preventDefault();
+            const touch = event.touches[0];
+            
+            mouse.x = (touch.clientX / renderer.domElement.clientWidth) * 2 - 1;
+            mouse.y = -(touch.clientY / renderer.domElement.clientHeight) * 2 + 1;
+            
+            raycaster.setFromCamera(mouse, camera);
+            const intersects = raycaster.intersectObject(diceMesh);
+            
+            if (intersects.length > 0) {
+                startDragging(intersects[0].point);
+            }
+        }
+
+        function startDragging(point) {
+            isDragging = true;
+            rollBtn.disabled = true;
+            grabIndicator.classList.add('active');
+            
+            // Desabilita controles da câmera enquanto arrasta
+            controls.enabled = false;
+            
+            // Congela a física
+            diceBody.mass = 0;
+            diceBody.updateMassProperties();
+            diceBody.velocity.set(0, 0, 0);
+            diceBody.angularVelocity.set(0, 0, 0);
+            
+            // Calcula offset do ponto de clique para o centro do dado
+            dragOffset.copy(diceBody.position).sub(new CANNON.Vec3(point.x, point.y, point.z));
+            
+            // Salva posição inicial para referência
+            dragStartPosition.copy(diceBody.position);
+            
+            // Cria um plano para arrastar (paralelo à tela)
+            const normal = camera.getWorldDirection(new THREE.Vector3());
+            dragPlane.setFromNormalAndCoplanarPoint(normal, point);
+        }
+
+        function onDragMove(event) {
+            if (!isDragging) return;
+            event.preventDefault();
+            
+            mouse.x = (event.clientX / renderer.domElement.clientWidth) * 2 - 1;
+            mouse.y = -(event.clientY / renderer.domElement.clientHeight) * 2 + 1;
+            
+            updateDragPosition();
+        }
+
+        function onTouchMove(event) {
+            if (!isDragging) return;
+            event.preventDefault();
+            
+            const touch = event.touches[0];
+            mouse.x = (touch.clientX / renderer.domElement.clientWidth) * 2 - 1;
+            mouse.y = -(touch.clientY / renderer.domElement.clientHeight) * 2 + 1;
+            
+            updateDragPosition();
+        }
+
+        function updateDragPosition() {
+            raycaster.setFromCamera(mouse, camera);
+            const targetPoint = new THREE.Vector3();
+            
+            if (raycaster.ray.intersectPlane(dragPlane, targetPoint)) {
+                // Aplica o offset para manter o ponto de clique na posição do mouse
+                targetPoint.add(dragOffset);
+                
+                // Mantém dentro de limites razoáveis
+                targetPoint.x = Math.max(-8, Math.min(8, targetPoint.x));
+                targetPoint.y = Math.max(0.5, Math.min(5, targetPoint.y));
+                targetPoint.z = Math.max(-8, Math.min(8, targetPoint.z));
+                
+                // Atualiza posição do dado
+                diceBody.position.copy(targetPoint);
+            }
+        }
+
+        function onDragEnd(event) {
+            if (isDragging) {
+                isDragging = false;
+                rollBtn.disabled = false;
+                grabIndicator.classList.remove('active');
+                
+                // Reativa controles da câmera
+                controls.enabled = true;
+                
+                // Reativa física com um pequeno impulso
+                diceBody.mass = 1;
+                diceBody.updateMassProperties();
+                
+                // Dá um pequeno impulso aleatório ao soltar
+                diceBody.velocity.set(
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 1,
+                    (Math.random() - 0.5) * 2
+                );
+                
+                diceBody.angularVelocity.set(
+                    (Math.random() - 0.5) * 5,
+                    (Math.random() - 0.5) * 5,
+                    (Math.random() - 0.5) * 5
+                );
+            }
+        }
+
+        function onTouchEnd(event) {
+            onDragEnd(event);
+        }
+
+        // --- Jogar dado ---
+        document.getElementById('rollBtn').addEventListener('click', () => {
+            if (isDragging) return;
+            
+            // Posição inicial mais alta
+            diceBody.position.set(0, 6, 0);
+            
+            // Velocidade mais controlada
+            diceBody.velocity.set(
+                (Math.random() - 0.5) * 6,
+                4 + Math.random() * 3,
+                (Math.random() - 0.5) * 6
+            );
+            
+            diceBody.angularVelocity.set(
+                (Math.random() - 0.5) * 20,
+                (Math.random() - 0.5) * 20,
+                (Math.random() - 0.5) * 20
+            );
+            
+            // Quaternion inicial aleatório
+            diceBody.quaternion.set(
+                Math.random() * Math.PI,
+                Math.random() * Math.PI,
+                Math.random() * Math.PI,
+                1
+            );
+        });
+
+        // --- Reset câmera ---
+        document.getElementById('resetCamera').addEventListener('click', () => {
+            camera.position.set(6, 4, 8);
+            controls.target.set(0, 1, 0);
+            controls.update();
+        });
+
+        // --- Animação ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Física apenas se não estiver arrastando
+            if (!isDragging) {
+                world.step(1 / 60);
+            }
+
+            // Sincroniza malha visual
+            diceMesh.position.copy(diceBody.position);
+            diceMesh.quaternion.copy(diceBody.quaternion);
+
+            // Atualiza controles
+            controls.update();
+
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // --- Resize ---
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // --- Posição inicial estável ---
+        diceBody.position.set(0, 3, 0);
+        diceBody.velocity.set(0, 0, 0);
+        diceBody.angularVelocity.set(0, 0, 0);
+    </script>
+</body>
+</html>

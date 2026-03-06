@@ -1,0 +1,6 @@
+{
+  "name": "dado-interativo",
+  "version": "1.0.0",
+  "description": "Dado 3D com física e interação",
+  "main": "index.html"
+}
