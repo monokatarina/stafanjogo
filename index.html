@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Dados - Arraste Livre e Gire ao Jogar</title>
+    <title>Dados - Queda e Giro Realistas</title>
     <style>
         body {
             margin: 0;
@@ -91,7 +91,7 @@
     <button id="rollBtn2">🎲 JOGAR DADO ROXO</button>
     
     <div id="info">
-        🖱️ ARRASTE LIVREMENTE • BOTÕES PARA JOGAR (COM GIRO)
+        🖱️ ARRASTE LIVREMENTE • BOTÕES PARA JOGAR (QUEDA REALISTA)
     </div>
     
     <div id="status">👆 Arraste os dados</div>
@@ -138,18 +138,28 @@
 
         // --- FÍSICA ---
         const world = new CANNON.World({
-            gravity: new CANNON.Vec3(0, -15, 0)
+            gravity: new CANNON.Vec3(0, -20, 0) // Gravidade mais forte
         });
 
-        // Material com mais atrito para parar de girar
+        // Material para contato mais realista
         const diceMaterial = new CANNON.Material('diceMaterial');
-        const contactMaterial = new CANNON.ContactMaterial(diceMaterial, diceMaterial, {
-            friction: 0.2,
-            restitution: 0.1,
-            contactEquationStiffness: 1e7
+        const groundMaterial = new CANNON.Material('groundMaterial');
+        
+        const contactDiceGround = new CANNON.ContactMaterial(diceMaterial, groundMaterial, {
+            friction: 0.8,           // Mais atrito para parar de rolar
+            restitution: 0.4,         // Mais ressalto para quicar
+            contactEquationStiffness: 1e8,
+            contactEquationRelaxation: 3
         });
-        world.addContactMaterial(contactMaterial);
-        world.defaultContactMaterial = contactMaterial;
+        
+        const contactDiceDice = new CANNON.ContactMaterial(diceMaterial, diceMaterial, {
+            friction: 0.5,
+            restitution: 0.3
+        });
+        
+        world.addContactMaterial(contactDiceGround);
+        world.addContactMaterial(contactDiceDice);
+        world.defaultContactMaterial = contactDiceGround;
 
         // --- CHÃO ---
         const groundGeo = new THREE.PlaneGeometry(20, 20);
@@ -166,7 +176,7 @@
         const groundBody = new CANNON.Body({
             type: CANNON.Body.STATIC,
             shape: new CANNON.Plane(),
-            material: diceMaterial
+            material: groundMaterial
         });
         groundBody.quaternion.setFromEuler(-Math.PI / 2, 0, 0);
         world.addBody(groundBody);
@@ -247,7 +257,7 @@
             position: new CANNON.Vec3(-2, 3, 0),
             material: diceMaterial,
             linearDamping: 0.1,
-            angularDamping: 0.08
+            angularDamping: 0.1
         });
         world.addBody(body1);
 
@@ -257,7 +267,7 @@
             position: new CANNON.Vec3(2, 3, 0),
             material: diceMaterial,
             linearDamping: 0.1,
-            angularDamping: 0.08
+            angularDamping: 0.1
         });
         world.addBody(body2);
 
@@ -309,23 +319,18 @@
                     document.getElementById('status').style.borderColor = '#9900cc';
                 }
                 
-                // Desabilita botão
                 currentButton.disabled = true;
                 
-                // Congela física
                 currentBody.mass = 0;
                 currentBody.updateMassProperties();
                 currentBody.velocity.set(0, 0, 0);
                 currentBody.angularVelocity.set(0, 0, 0);
                 
-                // Ponto de clique em 3D
                 startPoint.copy(hit.point);
                 
-                // Cria um plano perpendicular à câmera (arrasto livre)
                 const cameraDir = camera.getWorldDirection(new THREE.Vector3());
                 dragPlane.setFromNormalAndCoplanarPoint(cameraDir, startPoint);
                 
-                // Calcula offset
                 dragOffset.copy(currentBody.position).sub(new THREE.Vector3(hit.point.x, hit.point.y, hit.point.z));
             }
         }
@@ -343,7 +348,6 @@
             if (raycaster.ray.intersectPlane(dragPlane, targetPoint)) {
                 targetPoint.add(dragOffset);
                 
-                // Limites
                 targetPoint.x = Math.max(-8, Math.min(8, targetPoint.x));
                 targetPoint.y = Math.max(0.2, Math.min(6, targetPoint.y));
                 targetPoint.z = Math.max(-8, Math.min(8, targetPoint.z));
@@ -355,21 +359,23 @@
 
         function onMouseUp(event) {
             if (dragging) {
-                // Reativa física
                 currentBody.mass = 1;
                 currentBody.updateMassProperties();
                 
-                // Pequeno impulso ao soltar (opcional)
+                // Dá um pequeno impulso e giro ao soltar
                 currentBody.velocity.set(
+                    (Math.random() - 0.5) * 2,
                     (Math.random() - 0.5) * 1,
-                    0,
-                    (Math.random() - 0.5) * 1
+                    (Math.random() - 0.5) * 2
+                );
+                currentBody.angularVelocity.set(
+                    (Math.random() - 0.5) * 5,
+                    (Math.random() - 0.5) * 5,
+                    (Math.random() - 0.5) * 5
                 );
                 
-                // Reativa botão
                 currentButton.disabled = false;
                 
-                // Limpa estados
                 dragging = false;
                 currentBody = null;
                 currentMesh = null;
@@ -467,63 +473,54 @@
         window.addEventListener('touchend', onTouchEnd);
         window.addEventListener('touchcancel', onTouchEnd);
 
-        // --- BOTÕES DE JOGAR (COM GIRO CORRIGIDO) ---
+        // --- FUNÇÃO PARA JOGAR DADO COM QUEDA REALISTA ---
+        function throwDice(body, offsetX) {
+            if (dragging) return;
+            
+            // Posição inicial mais alta
+            body.position.set(offsetX, 8, 0);
+            
+            // Velocidade linear - dá um impulso para frente e para cima
+            body.velocity.set(
+                (Math.random() - 0.5) * 3,     // Leve variação em X
+                7 + Math.random() * 3,          // Forte impulso para cima
+                (Math.random() - 0.5) * 5       // Variação em Z
+            );
+            
+            // Velocidade angular - MUITO importante para queda realista!
+            // Giro em vários eixos para não cair reto
+            body.angularVelocity.set(
+                (Math.random() - 0.5) * 25,     // Giro em X
+                (Math.random() - 0.5) * 25,     // Giro em Y
+                (Math.random() - 0.5) * 25      // Giro em Z
+            );
+            
+            // Rotação inicial aleatória (para não começar alinhado)
+            body.quaternion.set(
+                Math.random() * Math.PI * 2,
+                Math.random() * Math.PI * 2,
+                Math.random() * Math.PI * 2,
+                1
+            );
+            
+            // Pequeno torque extra para garantir que não caia reto
+            // Isso faz o dado continuar girando durante a queda
+            setTimeout(() => {
+                if (body.position.y > 2) { // Se ainda está caindo
+                    body.angularVelocity.x += (Math.random() - 0.5) * 5;
+                    body.angularVelocity.y += (Math.random() - 0.5) * 5;
+                    body.angularVelocity.z += (Math.random() - 0.5) * 5;
+                }
+            }, 100);
+        }
+
+        // --- BOTÕES DE JOGAR ---
         document.getElementById('rollBtn1').addEventListener('click', () => {
-            if (!dragging) {
-                // Posição inicial
-                body1.position.set(-2, 6, 0);
-                
-                // Velocidade linear (para lançamento)
-                body1.velocity.set(
-                    (Math.random() - 0.5) * 8,  // X aleatório
-                    5 + Math.random() * 4,       // Y para cima
-                    (Math.random() - 0.5) * 8    // Z aleatório
-                );
-                
-                // Velocidade angular MUITO ALTA para girar bastante
-                body1.angularVelocity.set(
-                    (Math.random() - 0.5) * 70,  // Giro rápido em X
-                    (Math.random() - 0.5) * 60,  // Giro rápido em Y
-                    (Math.random() - 0.5) * 60   // Giro rápido em Z
-                );
-                
-                // Rotação inicial aleatória
-                body1.quaternion.set(
-                    Math.random() * Math.PI,
-                    Math.random() * Math.PI,
-                    Math.random() * Math.PI,
-                    1
-                );
-            }
+            throwDice(body1, -2);
         });
 
         document.getElementById('rollBtn2').addEventListener('click', () => {
-            if (!dragging) {
-                // Posição inicial
-                body2.position.set(2, 6, 0);
-                
-                // Velocidade linear
-                body2.velocity.set(
-                    (Math.random() - 0.5) * 8,
-                    5 + Math.random() * 4,
-                    (Math.random() - 0.5) * 8
-                );
-                
-                // Velocidade angular MUITO ALTA
-                body2.angularVelocity.set(
-                    (Math.random() - 0.5) * 30,
-                    (Math.random() - 0.5) * 30,
-                    (Math.random() - 0.5) * 30
-                );
-                
-                // Rotação inicial aleatória
-                body2.quaternion.set(
-                    Math.random() * Math.PI,
-                    Math.random() * Math.PI,
-                    Math.random() * Math.PI,
-                    1
-                );
-            }
+            throwDice(body2, 2);
         });
 
         // --- ANIMAÇÃO ---
@@ -559,15 +556,10 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         });
 
-        // Lançamento inicial para mostrar o giro
+        // Lançamento inicial para mostrar o efeito
         setTimeout(() => {
-            body1.position.set(-2, 6, 0);
-            body1.velocity.set(1, 6, 1);
-            body1.angularVelocity.set(15, 20, 10);
-            
-            body2.position.set(2, 6, 0);
-            body2.velocity.set(-1, 6, -1);
-            body2.angularVelocity.set(-20, 15, -15);
+            throwDice(body1, -2);
+            throwDice(body2, 2);
         }, 500);
     </script>
 </body>
